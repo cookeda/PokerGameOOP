@@ -1,0 +1,131 @@
+@startuml PokerEngine
+
+' =============================
+' ENUMS
+' =============================
+enum ActionType {
+  FOLD
+  CHECK
+  CALL
+  BET
+  RAISE
+  ALL_IN
+}
+
+enum Phase {
+  PRE_FLOP
+  FLOP
+  TURN
+  RIVER
+  SHOWDOWN
+}
+
+' =============================
+' CLASSES
+' =============================
+
+class Card {
+  - rank
+  - suit
+  - value
+  - repr
+  + __str__()
+  + __lt__(other)
+}
+
+class Deck {
+  - cards
+  - seed
+  + shuffle()
+  + deal_one()
+  + reset()
+}
+
+class Player {
+  - id
+  - name
+  - stack
+  - hand : List<Card>
+  - current_bet
+  - is_active
+  - is_all_in
+  - has_folded
+  - seat_position
+  + post_blind(amount)
+  + bet(amount)
+  + call(amount)
+  + fold()
+  + check()
+  + decide_action(game_state) : Action
+}
+
+class Dealer {
+  - table_ref : Table
+  - deck : Deck
+  + rotate_button()
+  + deal_hole_cards()
+  + deal_community(stage)
+  + collect_blinds()
+}
+
+class Pot {
+  - main_pot
+  - side_pots
+  - contributors
+  + add_contribution(player, amount)
+  + resolve_side_pots()
+  + award_to(winners)
+}
+
+class Table {
+  - table_id
+  - seats : List<Player>
+  - dealer_button
+  - small_blind
+  - big_blind
+  - community_cards : List<Card>
+  - pot : Pot
+  - deck : Deck
+  + add_player(player)
+  + remove_player(player)
+  + get_next_active_player(current_pos)
+  + reset_hand()
+}
+
+class Action {
+  - player : Player
+  - type : ActionType
+  - amount
+}
+
+class GameState {
+  - phase : Phase
+  - current_bet
+  - pot_ref : Pot
+  - active_players : List<Player>
+  - to_act_index
+  - table_ref : Table
+  + advance_phase()
+  + next_to_act()
+  + execute_action(action : Action)
+  + resolve_bets()
+  + showdown()
+}
+
+' =============================
+' RELATIONSHIPS
+' =============================
+
+Deck "1" o-- "52" Card
+Dealer "1" *-- "1" Deck
+Dealer "1" --> "1" Table
+Table "1" *-- "1" Pot
+Table "1" *-- "1" Deck
+Table "1" o-- "*" Player
+GameState "1" --> "1" Table
+GameState "1" --> "1" Pot
+GameState "1" --> "*" Player
+Player "1" --> "*" Card
+Action "1" --> "1" Player
+
+@enduml

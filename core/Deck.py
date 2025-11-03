@@ -1,6 +1,6 @@
 
 from itertools import product
-from core.card import Card, Rank, Suit
+from core.Card import Card, Rank, Suit
 import random
 
 class Deck:
