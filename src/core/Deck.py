@@ -1,6 +1,6 @@
 
 from itertools import product
-from core.Card import Card, Rank, Suit
+from src.core.Card import Card, Rank, Suit
 import random
 
 class Deck:
@@ -23,10 +23,4 @@ class Deck:
 
 	def __repr__(self):
 		return f"Deck({len(self.cards)} cards)"
-
-if __name__ == "__main__":
-    deck = Deck()
-    deck.shuffle()
-    print(deck.deal_one())
-    print(len(deck))
 

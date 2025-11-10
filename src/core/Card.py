@@ -28,5 +28,3 @@ class Card:
 	def __repr__(self):
 		return f"{self.rank.value}{self.suit.value}"
 
-card1 = Card(Rank.NINE, Suit.CLUBS)
-print(card1)

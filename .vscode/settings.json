@@ -1,0 +1,24 @@
+{
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#656233",
+        "activityBar.background": "#656233",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBarBadge.background": "#56a9a4",
+        "activityBarBadge.foreground": "#15202b",
+        "commandCenter.border": "#e7e7e799",
+        "panel.border": "#656233",
+        "sash.hoverBorder": "#656233",
+        "statusBar.background": "#434122",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#656233",
+        "statusBarItem.remoteBackground": "#434122",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "titleBar.activeBackground": "#434122",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#43412299",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.color": "#434122",
+    "taipyStudio.gUI.elementsFilePaths": []
+}
