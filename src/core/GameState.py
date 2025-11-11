@@ -47,8 +47,10 @@ class GameState:
             seat = self.table.seats[pos]
             
             if seat.player and seat.player.is_active and not seat.player.has_folded and not seat.player.is_all_in:
-                # Check if player needs to act (hasn't matched current bet)
-                if seat.player.current_bet < self.current_bet:
+                # Check if player needs to act
+                # When current_bet is 0, all players can act (check or bet)
+                # When current_bet > 0, player needs to act if they haven't matched
+                if self.current_bet == 0 or seat.player.current_bet < self.current_bet:
                     self.to_act_index = pos
                     return seat.player
         
@@ -183,6 +185,23 @@ class GameState:
         active_count = sum(1 for p in self.active_players if not p.has_folded)
         if active_count <= 1:
             return True
+        
+        # When current_bet is 0, round is only complete if all players have acted
+        # and no one has raised (all checked)
+        if self.current_bet == 0:
+            # If no one has acted yet, round is not complete
+            if len(self.action_history) == 0:
+                return False
+            
+            # If no one raised (last_raiser_index is None), check if all active players have acted
+            if self.last_raiser_index is None:
+                # Count how many active players have acted this round
+                active_players = [p for p in self.active_players if not p.has_folded and not p.is_all_in]
+                acted_players = set(action.player for action in self.action_history)
+                # Round complete if all active players have acted and no one raised
+                if len(acted_players) >= len(active_players):
+                    return True
+                return False
         
         # Check if all active players have matched the bet
         for player in self.active_players:
