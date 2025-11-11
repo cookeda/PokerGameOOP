@@ -1,8 +1,8 @@
 """
-Interactive poker demo where a human player plays against random AI bots.
-Uses treys library for hand evaluation at showdown.
+Interactive demo script allowing human players to play poker hands.
 """
 import random
+import os
 from src.core.Deck import Deck
 from src.core.Table import Table
 from src.core.Dealer import Dealer
@@ -10,51 +10,6 @@ from src.core.Player import Player
 from src.core.Pot import Pot
 from src.core.GameState import GameState, Phase
 from src.core.Action import Action, ActionType
-from src.core.Card import Card, Suit, Rank
-from treys import Card as TreysCard, Evaluator
-
-
-def card_to_treys(card: Card) -> int:
-    """Convert a Card object to Treys format using Card.new().
-    
-    Treys format: string like 'Ah' (Ace of Hearts)
-    - Rank: '2'-'9', 'T' (10), 'J', 'Q', 'K', 'A'
-    - Suit: 'c' (clubs), 'd' (diamonds), 'h' (hearts), 's' (spades)
-    """
-    # Map rank to string
-    rank_map = {
-        2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9',
-        10: 'T', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'
-    }
-    
-    # Map suit to string
-    suit_map = {
-        Suit.CLUBS: 'c',
-        Suit.DIAMOND: 'd',
-        Suit.HEARTS: 'h',
-        Suit.SPADES: 's'
-    }
-    
-    rank_str = rank_map[card.rank.value]
-    suit_str = suit_map[card.suit]
-    
-    return TreysCard.new(rank_str + suit_str)
-
-
-def evaluate_hand(player: Player, community_cards: list, evaluator: Evaluator):
-    """Evaluate a player's hand using Treys evaluator."""
-    if not player.hand or len(player.hand) < 2:
-        return None, None
-    
-    # Convert cards to Treys format
-    hole_cards = [card_to_treys(card) for card in player.hand]
-    board = [card_to_treys(card) for card in community_cards]
-    
-    # Evaluate the hand (note: evaluator.evaluate takes board first, then hole_cards)
-    score = evaluator.evaluate(board, hole_cards)
-    hand_class = evaluator.get_rank_class(score)
-    
-    return score, hand_class
 
 
 class RandomAIPlayer(Player):
@@ -95,323 +50,386 @@ class RandomAIPlayer(Player):
             return Action(self, ActionType.FOLD)
 
 
-def print_separator():
-    """Print a visual separator."""
-    print("\n" + "="*60 + "\n")
+def clear_screen():
+    """Clear the console screen."""
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 
-def print_game_state(game_state, human_player):
-    """Print current game state information."""
+def print_separator(char="=", width=70):
+    """Print a visual separator line."""
+    print("\n" + char * width + "\n")
+
+
+def display_game_state(game_state, human_player):
+    """
+    Display the current game state in a clear, organized format.
+    Only shows human player's cards; hides opponent cards until showdown.
+    """
+    table = game_state.table
+    pot = game_state.pot
+    
     print_separator()
     print(f"PHASE: {game_state.phase.value.upper().replace('_', '-')}")
-    print_separator()
-    print(f"Pot: {game_state.pot.get_total()} chips")
-    print(f"Current bet to match: {game_state.current_bet}")
-    if game_state.table.community_cards:
-        print(f"Community cards: {[str(card) for card in game_state.table.community_cards]}")
-    print("\nPlayer stacks:")
-    for seat in game_state.table.seats:
+    print_separator("-", 70)
+    
+    # Display dealer button and blinds
+    print(f"Dealer Button: Seat {table.dealer_button}")
+    print(f"Blinds: {table.small_blind}/{table.big_blind}")
+    print()
+    
+    # Display community cards
+    if table.community_cards:
+        print("Community Cards:")
+        print(f"  {[str(card) for card in table.community_cards]}")
+    else:
+        print("Community Cards: (none yet)")
+    print()
+    
+    # Display pot and current bet
+    print(f"Pot: {pot.get_total()} chips")
+    print(f"Current Bet to Match: {game_state.current_bet} chips")
+    print()
+    
+    # Display all players
+    print("Players:")
+    for i, seat in enumerate(table.seats):
         if seat.player:
-            status = ""
-            if seat.player.has_folded:
-                status = " [FOLDED]"
-            elif seat.player.is_all_in:
-                status = " [ALL-IN]"
-            print(f"  {seat.player.name}: {seat.player.stack} chips{status}")
-    print(f"\nYour hand: {[str(card) for card in human_player.hand]}")
+            player = seat.player
+            is_dealer = (i == table.dealer_button)
+            is_sb = (i == (table.dealer_button + 1) % len(table.seats))
+            is_bb = (i == (table.dealer_button + 2) % len(table.seats))
+            
+            # Build position indicator
+            position = []
+            if is_dealer:
+                position.append("D")
+            if is_sb:
+                position.append("SB")
+            if is_bb:
+                position.append("BB")
+            position_str = f" [{', '.join(position)}]" if position else ""
+            
+            # Show cards only for human player or if hand is over
+            if player == human_player:
+                cards_str = f"Hand: {[str(card) for card in player.hand]}"
+            else:
+                if player.has_folded:
+                    cards_str = "Hand: [FOLDED]"
+                elif game_state.phase == Phase.SHOWDOWN:
+                    cards_str = f"Hand: {[str(card) for card in player.hand]}"
+                else:
+                    cards_str = "Hand: [??]"
+            
+            status_parts = []
+            if player.has_folded:
+                status_parts.append("FOLDED")
+            if player.is_all_in:
+                status_parts.append("ALL-IN")
+            status_str = f" ({', '.join(status_parts)})" if status_parts else ""
+            
+            print(f"  Seat {i}: {player.name}{position_str}")
+            print(f"    Stack: {player.stack} chips | Current Bet: {player.current_bet} chips")
+            print(f"    {cards_str}{status_str}")
+    
+    print_separator("-", 70)
 
 
-def play_betting_round(game_state, human_player, evaluator):
-    """Play a complete betting round."""
-    while not game_state.round_complete():
+def play_interactive_betting_round(game_state, round_name, human_player, max_actions=50):
+    """
+    Play a complete betting round with interactive prompts for human players.
+    
+    Args:
+        game_state: The current GameState object
+        round_name: Name of the betting round (for display)
+        human_player: The human player object
+        max_actions: Maximum number of actions to prevent infinite loops
+    
+    Returns:
+        tuple: (hand_ended: bool, action_count: int)
+        - hand_ended: True if hand ended early (only one player remains), False otherwise
+        - action_count: Number of actions taken in this round
+    """
+    action_count = 0
+    hand_ended = False
+    
+    while not game_state.round_complete() and action_count < max_actions:
         player = game_state.next_to_act()
         if player is None:
+            # If next_to_act() returns None but round isn't complete, there's a state issue
             break
         
-        # Check if hand ended early (only one player left)
-        active_players = [p for p in game_state.active_players if not p.has_folded]
-        if len(active_players) <= 1:
-            break
-        
-        # Show game state before human player acts
-        if player.is_human:
-            print_game_state(game_state, human_player)
+        # Clear screen and show game state before each action
+        if player == human_player:
+            clear_screen()
+            display_game_state(game_state, human_player)
+            print(f"\n>>> It's your turn, {player.name}! <<<")
+        else:
+            # For AI players, just show a brief message
+            print(f"\n{player.name} is thinking...")
         
         # Get action from player
         action = player.decide_action(game_state)
+        action_count += 1
         
-        # Display action
-        if player.is_human:
-            print(f"\n{player.name} {action.type.value.upper()}", end="")
-            if action.amount > 0:
-                print(f" {action.amount}", end="")
-            print()
+        # Display the action
+        if player == human_player:
+            print(f"\nYou chose: {action.type.value.upper()}", end="")
         else:
             print(f"{player.name} {action.type.value.upper()}", end="")
-            if action.amount > 0:
-                print(f" {action.amount}", end="")
-            print()
         
-        # Execute action
+        if action.amount > 0:
+            print(f" {action.amount} chips", end="")
+        print()
+        
+        # Execute the action
         game_state.execute_action(action)
         
-        # Check if hand ended (only one player left)
+        # Show updated state
+        if player == human_player:
+            print(f"  Your stack: {player.stack} chips | Your bet: {player.current_bet} chips")
+        else:
+            print(f"  {player.name}: {player.stack} chips, current bet: {player.current_bet} chips")
+        
+        print(f"  Pot: {game_state.pot.get_total()} chips")
+        print(f"  Current bet to match: {game_state.current_bet} chips")
+        
+        # Check if hand ended (only one player remains)
         active_players = [p for p in game_state.active_players if not p.has_folded]
-        if len(active_players) <= 1:
+        if len(active_players) == 1:
+            winner = active_players[0]
+            print(f"\n>>> {winner.name} wins by default (all opponents folded)! <<<")
+            hand_ended = True
             break
+        
+        # Small pause for AI actions to make it more readable
+        if player != human_player:
+            import time
+            time.sleep(0.5)
     
-    # Resolve bets at end of round
-    game_state.resolve_bets()
-    return len([p for p in game_state.active_players if not p.has_folded])
+    if not hand_ended:
+        print(f"\n--- {round_name} Betting Round Complete ({action_count} actions) ---")
+    
+    return hand_ended, action_count
 
 
-def handle_showdown(game_state, evaluator):
-    """Handle showdown phase with hand evaluation using treys."""
-    print_separator()
-    print("SHOWDOWN!")
-    print_separator()
+def play_hand(table, dealer, pot, human_player):
+    """
+    Play a complete poker hand from start to finish.
     
-    active_players = [p for p in game_state.active_players if not p.has_folded]
-    
-    if len(active_players) == 0:
-        print("No active players for showdown!")
-        return []
-    
-    # Evaluate all hands
-    player_scores = {}
-    for player in active_players:
-        score, hand_class = evaluate_hand(player, game_state.table.community_cards, evaluator)
-        if score is not None:
-            player_scores[player] = score
-            hand_name = evaluator.class_to_string(hand_class)
-            print(f"{player.name}: {[str(card) for card in player.hand]} - {hand_name} (score: {score})")
-    
-    if not player_scores:
-        print("No valid hands to evaluate!")
-        return []
-    
-    # Find winner(s) - lower score is better in Treys
-    best_score = min(player_scores.values())
-    winners = [player for player, score in player_scores.items() if score == best_score]
-    
-    print_separator()
-    if len(winners) == 1:
-        winner = winners[0]
-        winner_score = player_scores[winner]
-        winner_hand = evaluator.class_to_string(evaluator.get_rank_class(winner_score))
-        print(f"Winner: {winner.name} with {winner_hand}!")
-    else:
-        print(f"Tie! Winners: {', '.join([w.name for w in winners])}")
-    
-    return winners
-
-
-def play_hand(table, dealer, pot, human_player, evaluator):
-    """Play a single hand of poker."""
-    print_separator()
-    print("="*60)
-    print("NEW HAND")
-    print("="*60)
-    print_separator()
-    
-    # Reset table for new hand
+    Returns:
+        tuple: (winner: Player, hand_ended_early: bool)
+    """
+    # Reset hand state
     table.reset_hand()
+    dealer.shuffle_deck()
+    dealer.rotate_button()
     
     # Collect blinds
-    print("Collecting blinds...")
+    clear_screen()
+    print_separator()
+    print("NEW HAND - Collecting Blinds")
+    print_separator()
     dealer.collect_blinds()
-    print(f"Small blind ({table.small_blind}) and big blind ({table.big_blind}) posted")
     
-    # Create game state
-    game_state = GameState(table, pot)
-    game_state.current_bet = table.big_blind
+    # Display initial state
+    display_game_state(GameState(table, pot), human_player)
+    input("\nPress Enter to continue...")
     
     # Deal hole cards
+    clear_screen()
     print_separator()
-    print("Dealing hole cards...")
+    print("Dealing Hole Cards")
+    print_separator()
     dealer.deal_hole_cards()
-    print(f"Your hand: {[str(card) for card in human_player.hand]}")
     
-    # Pre-flop betting round
-    print_separator()
-    print("PRE-FLOP BETTING ROUND")
-    print_separator()
-    remaining_players = play_betting_round(game_state, human_player, evaluator)
+    # Show human player their cards
+    display_game_state(GameState(table, pot), human_player)
+    print(f"\n>>> You received: {[str(card) for card in human_player.hand]} <<<")
+    input("\nPress Enter to start Pre-Flop betting...")
     
-    # Check if hand ended early
-    if remaining_players <= 1:
+    # Pre-Flop betting round
+    game_state = GameState(table, pot)
+    game_state.current_bet = table.big_blind  # Big blind is the initial bet to match
+    
+    hand_ended, _ = play_interactive_betting_round(game_state, "Pre-Flop", human_player)
+    if not hand_ended:
+        game_state.resolve_bets()
+    
+    if hand_ended:
         active_players = [p for p in game_state.active_players if not p.has_folded]
-        if len(active_players) == 1:
-            winner = active_players[0]
-            print_separator()
-            print(f"{winner.name} wins! (All other players folded)")
-            pot.award_to([winner])
-            return
-        else:
-            print("Error: No active players remaining")
-            return
+        return active_players[0], True
     
     # Flop
+    clear_screen()
     print_separator()
-    print("Dealing the FLOP...")
+    print("Dealing the Flop")
+    print_separator()
     game_state.advance_phase()
-    print(f"Community cards: {[str(card) for card in table.community_cards]}")
+    display_game_state(game_state, human_player)
+    input("\nPress Enter to start Flop betting...")
     
-    # Flop betting round
-    print_separator()
-    print("FLOP BETTING ROUND")
-    print_separator()
-    remaining_players = play_betting_round(game_state, human_player, evaluator)
+    hand_ended, _ = play_interactive_betting_round(game_state, "Flop", human_player)
+    if not hand_ended:
+        game_state.resolve_bets()
     
-    if remaining_players <= 1:
+    if hand_ended:
         active_players = [p for p in game_state.active_players if not p.has_folded]
-        if len(active_players) == 1:
-            winner = active_players[0]
-            print_separator()
-            print(f"{winner.name} wins! (All other players folded)")
-            pot.award_to([winner])
-            return
+        return active_players[0], True
     
     # Turn
+    clear_screen()
     print_separator()
-    print("Dealing the TURN...")
+    print("Dealing the Turn")
+    print_separator()
     game_state.advance_phase()
-    print(f"Community cards: {[str(card) for card in table.community_cards]}")
+    display_game_state(game_state, human_player)
+    input("\nPress Enter to start Turn betting...")
     
-    # Turn betting round
-    print_separator()
-    print("TURN BETTING ROUND")
-    print_separator()
-    remaining_players = play_betting_round(game_state, human_player, evaluator)
+    hand_ended, _ = play_interactive_betting_round(game_state, "Turn", human_player)
+    if not hand_ended:
+        game_state.resolve_bets()
     
-    if remaining_players <= 1:
+    if hand_ended:
         active_players = [p for p in game_state.active_players if not p.has_folded]
-        if len(active_players) == 1:
-            winner = active_players[0]
-            print_separator()
-            print(f"{winner.name} wins! (All other players folded)")
-            pot.award_to([winner])
-            return
+        return active_players[0], True
     
     # River
+    clear_screen()
     print_separator()
-    print("Dealing the RIVER...")
+    print("Dealing the River")
+    print_separator()
     game_state.advance_phase()
-    print(f"Community cards: {[str(card) for card in table.community_cards]}")
+    display_game_state(game_state, human_player)
+    input("\nPress Enter to start River betting...")
     
-    # River betting round
-    print_separator()
-    print("RIVER BETTING ROUND")
-    print_separator()
-    remaining_players = play_betting_round(game_state, human_player, evaluator)
-    
-    if remaining_players <= 1:
-        active_players = [p for p in game_state.active_players if not p.has_folded]
-        if len(active_players) == 1:
-            winner = active_players[0]
-            print_separator()
-            print(f"{winner.name} wins! (All other players folded)")
-            pot.award_to([winner])
-            return
+    hand_ended, _ = play_interactive_betting_round(game_state, "River", human_player)
+    if not hand_ended:
+        game_state.resolve_bets()
     
     # Showdown
-    game_state.advance_phase()
-    winners = handle_showdown(game_state, evaluator)
+    clear_screen()
+    print_separator()
+    print("SHOWDOWN")
+    print_separator()
+    game_state.advance_phase()  # Advances to SHOWDOWN phase
+    display_game_state(game_state, human_player)  # Now shows all cards
     
-    if winners:
-        pot.award_to(winners)
-        print(f"Pot awarded: {pot.get_total()} chips")
+    # Determine winner (simplified - first active player wins)
+    # In a real implementation, you'd evaluate hands here
+    active_players = [p for p in game_state.active_players if not p.has_folded]
+    if len(active_players) == 1:
+        return active_players[0], False
     else:
-        print("No winners determined!")
+        # For now, just pick the first active player
+        # TODO: Implement proper hand evaluation
+        print("\nNote: Hand evaluation not fully implemented. Winner selected arbitrarily.")
+        return active_players[0], False
+
+
+def display_hand_results(winner, pot, all_players, hand_ended_early):
+    """Display the results of a completed hand."""
+    print_separator()
+    if hand_ended_early:
+        print("HAND ENDED EARLY")
+    else:
+        print("HAND COMPLETE - SHOWDOWN")
+    print_separator()
+    
+    print(f"Winner: {winner.name}")
+    print(f"Pot Awarded: {pot.get_total()} chips")
+    
+    # Award the pot
+    pot.award_to([winner])
+    
+    print("\nFinal Stacks:")
+    for player in all_players:
+        print(f"  {player.name}: {player.stack} chips")
+    
+    print_separator()
 
 
 def main():
-    """Main game loop."""
-    print("="*60)
-    print("INTERACTIVE POKER GAME")
-    print("Play against random AI bots!")
-    print("="*60)
+    """Main function to run the interactive poker demo."""
+    print("="*70)
+    print("INTERACTIVE POKER GAME DEMO")
+    print("="*70)
     
-    # Get player name
-    player_name = input("\nEnter your name: ").strip()
-    if not player_name:
-        player_name = "Player"
+    # Get human player name
+    human_name = input("\nEnter your name: ").strip()
+    if not human_name:
+        human_name = "Player"
     
-    # Initialize game components
-    table = Table(n_seats=6, small_blind=1, big_blind=2)
+    # Configuration
+    starting_stack = 100
+    small_blind = 1
+    big_blind = 2
+    n_ai_players = 2  # Number of AI opponents
+    
+    # Create table
+    table = Table(n_seats=6, small_blind=small_blind, big_blind=big_blind)
     deck = Deck()
     dealer = Dealer(table, deck)
     table.dealer = dealer
     pot = Pot()
-    evaluator = Evaluator()
     
-    # Create players
-    human_player = Player(player_name, 100, is_human=True)
-    bot1 = RandomAIPlayer("Bot1", 100, is_human=False)
-    bot2 = RandomAIPlayer("Bot2", 100, is_human=False)
-    
-    # Add players to table
+    # Create human player
+    human_player = Player(human_name, starting_stack, is_human=True)
     table.add_player(human_player, seat_index=0)
-    table.add_player(bot1, seat_index=1)
-    table.add_player(bot2, seat_index=2)
     
-    print(f"\nPlayers:")
-    print(f"  {human_player.name}: {human_player.stack} chips")
-    print(f"  {bot1.name}: {bot1.stack} chips")
-    print(f"  {bot2.name}: {bot2.stack} chips")
+    # Create AI opponents
+    ai_names = ["Alice", "Bob", "Charlie", "Diana", "Eve"]
+    ai_players = []
+    for i in range(n_ai_players):
+        ai_player = RandomAIPlayer(ai_names[i], starting_stack, is_human=False)
+        table.add_player(ai_player, seat_index=i+1)
+        ai_players.append(ai_player)
     
-    # Main game loop
+    all_players = [human_player] + ai_players
+    
+    print(f"\nGame Setup:")
+    print(f"  Players: {human_name} (You) + {', '.join([p.name for p in ai_players])}")
+    print(f"  Starting Stack: {starting_stack} chips per player")
+    print(f"  Blinds: {small_blind}/{big_blind}")
+    input("\nPress Enter to start the first hand...")
+    
+    # Play hands until user quits or someone is out
     hand_number = 1
     while True:
-        # Check if any player is eliminated
-        active_players = [p for p in [human_player, bot1, bot2] if p.stack > 0]
-        if len(active_players) < 2:
-            print_separator()
-            print("GAME OVER!")
-            if human_player.stack > 0:
-                print(f"Congratulations {human_player.name}! You won!")
-            else:
-                print(f"Game over! You've been eliminated.")
+        # Check if anyone is out
+        active_count = sum(1 for p in all_players if p.stack > 0)
+        if active_count < 2:
+            print("\nNot enough players with chips to continue!")
             break
         
         # Play a hand
-        play_hand(table, dealer, pot, human_player, evaluator)
+        winner, hand_ended_early = play_hand(table, dealer, pot, human_player)
         
-        # Show final stacks
-        print_separator()
-        print("Stacks after hand:")
-        print(f"  {human_player.name}: {human_player.stack} chips")
-        print(f"  {bot1.name}: {bot1.stack} chips")
-        print(f"  {bot2.name}: {bot2.stack} chips")
+        # Show results
+        clear_screen()
+        display_hand_results(winner, pot, all_players, hand_ended_early)
         
         # Check if human player is out
         if human_player.stack <= 0:
-            print_separator()
-            print("You're out of chips! Game over.")
+            print(f"\n{human_name}, you're out of chips! Game over.")
             break
         
-        # Rotate button
-        dealer.rotate_button()
-        
-        # Shuffle deck for next hand
-        dealer.shuffle_deck()
-        
-        # Ask to continue
-        print_separator()
+        # Ask if user wants to continue
+        print()
         response = input("Play another hand? (y/n): ").strip().lower()
         if response != 'y' and response != 'yes':
-            print("\nThanks for playing!")
             break
         
         hand_number += 1
     
     # Final summary
     print_separator()
-    print("FINAL RESULTS:")
-    print(f"  {human_player.name}: {human_player.stack} chips")
-    print(f"  {bot1.name}: {bot1.stack} chips")
-    print(f"  {bot2.name}: {bot2.stack} chips")
-    print("="*60)
+    print("GAME SESSION ENDED")
+    print_separator()
+    print("Final Stacks:")
+    for player in all_players:
+        print(f"  {player.name}: {player.stack} chips")
+    print("\nThanks for playing!")
+    print("="*70)
 
 
 if __name__ == "__main__":
