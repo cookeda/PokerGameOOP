@@ -100,26 +100,34 @@ def main():
     
     print(f"Current bet to match: {game_state.current_bet}")
     print(f"Pot: {pot.get_total()} chips")
+    print(f"\n--- Betting Actions ---")
     
     # Play betting round with random actions
-    round_num = 1
+    action_count = 0
     while not game_state.round_complete():
         player = game_state.next_to_act()
         if player is None:
             break
         
         action = player.decide_action(game_state)
-        print(f"\n{player.name} {action.type.value.upper()}", end="")
+        action_count += 1
+        print(f"\nAction {action_count}: {player.name} {action.type.value.upper()}", end="")
         if action.amount > 0:
             print(f" {action.amount}", end="")
         print()
         
         game_state.execute_action(action)
-        print(f"  {player.name}: {player.stack} chips, current bet: {player.current_bet}")
-        print(f"  Pot: {pot.get_total()} chips")
-        round_num += 1
+        print(f"  → {player.name}: {player.stack} chips, current bet: {player.current_bet}")
+        print(f"  → Pot: {pot.get_total()} chips")
+        print(f"  → Current bet to match: {game_state.current_bet}")
+        
+        # Check if hand ended
+        active_players = [p for p in game_state.active_players if not p.has_folded]
+        if len(active_players) == 1:
+            print(f"\n  → {active_players[0].name} wins by default (opponent folded)!")
+            break
     
-    print(f"\nBetting round complete!")
+    print(f"\n--- Pre-Flop Betting Complete ({action_count} actions) ---")
     game_state.resolve_bets()
     
     print_separator()
@@ -134,25 +142,40 @@ def main():
     print("STEP 5: Flop Betting Round")
     print_separator()
     
+    # Reset to_act_index for new betting round (left of button)
+    game_state.to_act_index = (table.dealer_button + 1) % len(table.seats)
+    
+    print(f"Current bet to match: {game_state.current_bet}")
+    print(f"Pot: {pot.get_total()} chips")
+    print(f"\n--- Betting Actions ---")
+    
     # Play betting round with random actions
-    round_num = 1
-    while not game_state.round_complete():
+    action_count = 0
+    max_actions = 20  # Safety limit
+    while not game_state.round_complete() and action_count < max_actions:
         player = game_state.next_to_act()
         if player is None:
             break
         
         action = player.decide_action(game_state)
-        print(f"\n{player.name} {action.type.value.upper()}", end="")
+        action_count += 1
+        print(f"\nAction {action_count}: {player.name} {action.type.value.upper()}", end="")
         if action.amount > 0:
             print(f" {action.amount}", end="")
         print()
         
         game_state.execute_action(action)
-        print(f"  {player.name}: {player.stack} chips, current bet: {player.current_bet}")
-        print(f"  Pot: {pot.get_total()} chips")
-        round_num += 1
+        print(f"  → {player.name}: {player.stack} chips, current bet: {player.current_bet}")
+        print(f"  → Pot: {pot.get_total()} chips")
+        print(f"  → Current bet to match: {game_state.current_bet}")
+        
+        # Check if hand ended
+        active_players = [p for p in game_state.active_players if not p.has_folded]
+        if len(active_players) == 1:
+            print(f"\n  → {active_players[0].name} wins by default (opponent folded)!")
+            break
     
-    print(f"\nBetting round complete!")
+    print(f"\n--- Flop Betting Complete ({action_count} actions) ---")
     game_state.resolve_bets()
     
     # Check if hand ended (only one player left)
@@ -185,31 +208,53 @@ def main():
     print("STEP 7: Turn Betting Round")
     print_separator()
     
+    # Reset to_act_index for new betting round (left of button)
+    game_state.to_act_index = (table.dealer_button + 1) % len(table.seats)
+    game_state.last_raiser_index = None
+    
+    print(f"Current bet to match: {game_state.current_bet}")
+    print(f"Pot: {pot.get_total()} chips")
+    print(f"\n--- Betting Actions ---")
+    
     # Play betting round with random actions
-    round_num = 1
-    while not game_state.round_complete():
+    action_count = 0
+    max_actions = 20  # Safety limit
+    while not game_state.round_complete() and action_count < max_actions:
         player = game_state.next_to_act()
         if player is None:
-            break
+            # If no one needs to act but round isn't complete, find first active player
+            active_players = [p for p in game_state.active_players if not p.has_folded and not p.is_all_in]
+            if active_players and game_state.current_bet == 0:
+                # When current_bet is 0, all players can act (check or bet)
+                for i in range(len(table.seats)):
+                    pos = (game_state.to_act_index + i) % len(table.seats)
+                    seat = table.seats[pos]
+                    if seat.player in active_players:
+                        player = seat.player
+                        game_state.to_act_index = pos
+                        break
+            if player is None:
+                break
         
         action = player.decide_action(game_state)
-        print(f"\n{player.name} {action.type.value.upper()}", end="")
+        action_count += 1
+        print(f"\nAction {action_count}: {player.name} {action.type.value.upper()}", end="")
         if action.amount > 0:
             print(f" {action.amount}", end="")
         print()
         
         game_state.execute_action(action)
-        print(f"  {player.name}: {player.stack} chips, current bet: {player.current_bet}")
-        print(f"  Pot: {pot.get_total()} chips")
-        round_num += 1
+        print(f"  → {player.name}: {player.stack} chips, current bet: {player.current_bet}")
+        print(f"  → Pot: {pot.get_total()} chips")
+        print(f"  → Current bet to match: {game_state.current_bet}")
         
         # Check if hand ended (only one player left)
         active_players = [p for p in game_state.active_players if not p.has_folded]
         if len(active_players) == 1:
-            print(f"\n{active_players[0].name} wins by default (opponent folded)!")
+            print(f"\n  → {active_players[0].name} wins by default (opponent folded)!")
             break
     
-    print(f"\nBetting round complete!")
+    print(f"\n--- Turn Betting Complete ({action_count} actions) ---")
     game_state.resolve_bets()
     
     # Check if hand ended
@@ -242,31 +287,53 @@ def main():
     print("STEP 9: River Betting Round")
     print_separator()
     
+    # Reset to_act_index for new betting round (left of button)
+    game_state.to_act_index = (table.dealer_button + 1) % len(table.seats)
+    game_state.last_raiser_index = None
+    
+    print(f"Current bet to match: {game_state.current_bet}")
+    print(f"Pot: {pot.get_total()} chips")
+    print(f"\n--- Betting Actions ---")
+    
     # Play betting round with random actions
-    round_num = 1
-    while not game_state.round_complete():
+    action_count = 0
+    max_actions = 20  # Safety limit
+    while not game_state.round_complete() and action_count < max_actions:
         player = game_state.next_to_act()
         if player is None:
-            break
+            # If no one needs to act but round isn't complete, find first active player
+            active_players = [p for p in game_state.active_players if not p.has_folded and not p.is_all_in]
+            if active_players and game_state.current_bet == 0:
+                # When current_bet is 0, all players can act (check or bet)
+                for i in range(len(table.seats)):
+                    pos = (game_state.to_act_index + i) % len(table.seats)
+                    seat = table.seats[pos]
+                    if seat.player in active_players:
+                        player = seat.player
+                        game_state.to_act_index = pos
+                        break
+            if player is None:
+                break
         
         action = player.decide_action(game_state)
-        print(f"\n{player.name} {action.type.value.upper()}", end="")
+        action_count += 1
+        print(f"\nAction {action_count}: {player.name} {action.type.value.upper()}", end="")
         if action.amount > 0:
             print(f" {action.amount}", end="")
         print()
         
         game_state.execute_action(action)
-        print(f"  {player.name}: {player.stack} chips, current bet: {player.current_bet}")
-        print(f"  Pot: {pot.get_total()} chips")
-        round_num += 1
+        print(f"  → {player.name}: {player.stack} chips, current bet: {player.current_bet}")
+        print(f"  → Pot: {pot.get_total()} chips")
+        print(f"  → Current bet to match: {game_state.current_bet}")
         
         # Check if hand ended
         active_players = [p for p in game_state.active_players if not p.has_folded]
         if len(active_players) == 1:
-            print(f"\n{active_players[0].name} wins by default (opponent folded)!")
+            print(f"\n  → {active_players[0].name} wins by default (opponent folded)!")
             break
     
-    print(f"\nBetting round complete!")
+    print(f"\n--- River Betting Complete ({action_count} actions) ---")
     game_state.resolve_bets()
     
     print_separator()
